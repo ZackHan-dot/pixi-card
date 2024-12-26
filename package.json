@@ -12,7 +12,7 @@
     "@esotericsoftware/spine-pixi-v8": "^4.2.66",
     "@pixi/sound": "^6.0.1",
     "@pixi/ui": "^2.2.0",
-    "motion": "^11.12.0",
+    "gsap": "^3.12.5",
     "pixi.js": "^8.6.3"
   },
   "devDependencies": {

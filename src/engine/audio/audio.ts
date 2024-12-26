@@ -1,6 +1,6 @@
-import type { PlayOptions, Sound } from "@pixi/sound";
-import { sound } from "@pixi/sound";
-import { animate } from "motion";
+import type { PlayOptions, Sound } from '@pixi/sound';
+import { sound } from '@pixi/sound';
+import { gsap } from 'gsap';
 
 /**
  * Handles music background, playing only one audio file in loop at time,
@@ -8,52 +8,55 @@ import { animate } from "motion";
  * control for music background only, leaving other sounds volumes unchanged.
  */
 export class BGM {
-  /** Alias of the current music being played */
-  public currentAlias?: string;
-  /** Current music instance being played */
-  public current?: Sound;
-  /** Current volume set */
-  private volume = 1;
+    /** Alias of the current music being played */
+    public currentAlias?: string;
+    /** Current music instance being played */
+    public current?: Sound;
+    /** Current volume set */
+    private volume = 1;
 
-  /** Play a background music, fading out and stopping the previous, if there is one */
-  public async play(alias: string, options?: PlayOptions) {
-    // Do nothing if the requested music is already being played
-    if (this.currentAlias === alias) return;
+    /** Play a background music, fading out and stopping the previous, if there is one */
+    public async play(alias: string, options?: PlayOptions) {
+        // Do nothing if the requested music is already being played
+        if (this.currentAlias === alias) return;
 
-    // Fade out then stop current music
-    if (this.current) {
-      const current = this.current;
-      animate(current, { volume: 0 }, { duration: 1, ease: "linear" }).then(
-        () => {
-          current.stop();
-        },
-      );
+        // Fade out then stop current music
+        if (this.current) {
+            const current = this.current;
+            gsap.to(current, {
+                volume: 0,
+                duration: 1,
+                ease: 'linear',
+                onComplete: () => {
+                    current.stop();
+                },
+            });
+        }
+
+        // Find out the new instance to be played
+        this.current = sound.find(alias);
+
+        // Play and fade in the new music
+        this.currentAlias = alias;
+        this.current.play({ loop: true, ...options });
+        this.current.volume = 0;
+        gsap.to(this.current, {
+            volume: this.volume,
+            duration: 1,
+            ease: 'linear',
+        });
     }
 
-    // Find out the new instance to be played
-    this.current = sound.find(alias);
+    /** Get background music volume */
+    public getVolume() {
+        return this.volume;
+    }
 
-    // Play and fade in the new music
-    this.currentAlias = alias;
-    this.current.play({ loop: true, ...options });
-    this.current.volume = 0;
-    animate(
-      this.current,
-      { volume: this.volume },
-      { duration: 1, ease: "linear" },
-    );
-  }
-
-  /** Get background music volume */
-  public getVolume() {
-    return this.volume;
-  }
-
-  /** Set background music volume */
-  public setVolume(v: number) {
-    this.volume = v;
-    if (this.current) this.current.volume = this.volume;
-  }
+    /** Set background music volume */
+    public setVolume(v: number) {
+        this.volume = v;
+        if (this.current) this.current.volume = this.volume;
+    }
 }
 
 /**
@@ -63,22 +66,22 @@ export class BGM {
  * have their volume changed. But because most of sound effects are short sounds, this is generally fine.
  */
 export class SFX {
-  /** Volume scale for new instances */
-  private volume = 1;
+    /** Volume scale for new instances */
+    private volume = 1;
 
-  /** Play an one-shot sound effect */
-  public play(alias: string, options?: PlayOptions) {
-    const volume = this.volume * (options?.volume ?? 1);
-    sound.play(alias, { ...options, volume });
-  }
+    /** Play an one-shot sound effect */
+    public play(alias: string, options?: PlayOptions) {
+        const volume = this.volume * (options?.volume ?? 1);
+        sound.play(alias, { ...options, volume });
+    }
 
-  /** Set sound effects volume */
-  public getVolume() {
-    return this.volume;
-  }
+    /** Set sound effects volume */
+    public getVolume() {
+        return this.volume;
+    }
 
-  /** Set sound effects volume. Does not affect instances that are currently playing */
-  public setVolume(v: number) {
-    this.volume = v;
-  }
+    /** Set sound effects volume. Does not affect instances that are currently playing */
+    public setVolume(v: number) {
+        this.volume = v;
+    }
 }
