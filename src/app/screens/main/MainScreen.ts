@@ -1,10 +1,10 @@
 import { FancyButton } from '@pixi/ui';
 import type { Ticker } from 'pixi.js';
-import { Container, Sprite, Texture } from 'pixi.js';
-import { gsap } from 'gsap';
+import { Container } from 'pixi.js';
 import { engine } from '../../getEngine';
 import { PausePopup } from '../../popups/PausePopup';
 import { SettingsPopup } from '../../popups/SettingsPopup';
+import { GameManager } from '../../game/GameManager';
 
 /** The screen that holds the app */
 export class MainScreen extends Container {
@@ -15,12 +15,17 @@ export class MainScreen extends Container {
     private pauseButton: FancyButton;
     private settingsButton: FancyButton;
     private paused = false;
+    private gameManager: GameManager | null;
 
     constructor() {
         super();
 
         this.mainContainer = new Container();
         this.addChild(this.mainContainer);
+        this.gameManager = GameManager.getInstance(
+            engine().screen,
+            this.mainContainer
+        );
 
         const buttonAnimations = {
             hover: {
@@ -62,8 +67,11 @@ export class MainScreen extends Container {
 
     /** Update the screen */
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    public update(_time: Ticker) {
+    public update(time: Ticker) {
         if (this.paused) return;
+        if (this.gameManager) {
+            this.gameManager.update(time);
+        }
     }
 
     /** Pause gameplay - automatically fired when a popup is presented */
@@ -79,7 +87,12 @@ export class MainScreen extends Container {
     }
 
     /** Fully reset */
-    public reset() {}
+    public reset() {
+        if (this.gameManager) {
+            this.gameManager.deploy();
+            this.gameManager = null;
+        }
+    }
 
     /** Resize the screen, fired whenever window size changes */
     public resize(width: number, height: number) {
@@ -96,21 +109,9 @@ export class MainScreen extends Container {
 
     /** Show screen with animations */
     public async show(): Promise<void> {
-        // engine().audio.bgm.play('main/sounds/bgm-main.mp3', { volume: 0.5 });
-
-        for (let i = 0; i < 10; i++) {
-            const tank = new Sprite(Texture.from('tank.png'));
-            tank.anchor.set(0.5);
-            tank.scale.set(0.35);
-            tank.position.set(50 + i * 4);
-            this.mainContainer.addChild(tank);
-            gsap.to(tank, {
-                y: 100,
-                x: 200 + i * 4,
-                duration: 0.3,
-                ease: 'sine.in',
-                delay: i * 0.1,
-            });
+        engine().audio.bgm.play('main/sounds/bgm-main.mp3', { volume: 0.5 });
+        if (this.gameManager) {
+            this.gameManager.startGame();
         }
     }
 
