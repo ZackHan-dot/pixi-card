@@ -1,16 +1,21 @@
 import { Container, Ticker } from 'pixi.js';
 import { EventManager } from '../utils/EventManager';
 import { Player } from './Player';
-import { generateRandomHands, InitDeckInfo } from './Core';
+import { generateRandomHands, InitDeckInfo, judgeCardType } from './Core';
 import { GameState, StateMachine } from './GameMachine';
 import { Card } from './Card';
 import { PlayerQueue } from './PlayerQueue';
 import { isEmptyArray } from '../../engine/utils/common';
 import gsap from 'gsap';
+import { CardType } from './const';
 
 enum GameStatus {
     INITED,
     DEALED,
+    BIDDED,
+    PLAYING,
+    PLAYED,
+    GAMEOVER,
 }
 
 export interface Size {
@@ -30,6 +35,8 @@ export class GameManager {
     private playerQueue: PlayerQueue | null = null;
     private bidLandlordCount: number = 0;
     private landlord: Player | null = null;
+    private currentHand: Card[] = [];
+    private lastPlayer: Player | null = null;
     private constructor(gameSize: Size, gameView: Container) {
         this.gameSize = gameSize;
         this.gameView = gameView;
@@ -81,10 +88,10 @@ export class GameManager {
             this.retrybidding.bind(this)
         );
         this.stateMachine.addState(GameState.PLAYING, this.playing.bind(this));
-        // this.stateMachine.addState(
-        //     GameState.PLAYER_TURN,
-        //     this.playerTurn.bind(this)
-        // );
+        this.stateMachine.addState(
+            GameState.PLAYER_TURN,
+            this.playerTurn.bind(this)
+        );
         // this.stateMachine.addState(GameState.PAUSE, this.pause.bind(this));
         // this.stateMachine.addState(
         //     GameState.SETTLEMENT,
@@ -114,20 +121,18 @@ export class GameManager {
         this.stateMachine.addTransition(
             GameState.BIDDING,
             GameState.PLAYING,
-            () =>
-                this.bidLandlordCount === this.players.length &&
-                this.landlord !== null
+            () => this.gameStatus === GameStatus.BIDDED
         );
-        // this.stateMachine.addTransition(
-        //     GameState.PLAYING,
-        //     GameState.PLAYER_TURN,
-        //     () => true
-        // );
-        // this.stateMachine.addTransition(
-        //     GameState.PLAYER_TURN,
-        //     GameState.PLAYING,
-        //     () => true
-        // );
+        this.stateMachine.addTransition(
+            GameState.PLAYING,
+            GameState.PLAYER_TURN,
+            () => true
+        );
+        this.stateMachine.addTransition(
+            GameState.PLAYER_TURN,
+            GameState.PLAYING,
+            () => this.gameStatus === GameStatus.PLAYED
+        );
         // this.stateMachine.addTransition(
         //     GameState.PLAYING,
         //     GameState.SETTLEMENT,
@@ -165,7 +170,7 @@ export class GameManager {
         const gHeight = this.gameSize.height;
         const playerPos = [
             { x: -gWidth / 2 + 155, y: -gHeight / 2 + 200, seating: -1 },
-            { x: 0, y: gHeight / 2 - 135, seating: 0 },
+            { x: -55, y: gHeight / 2 - 135, seating: 0 },
             { x: gWidth / 2 - 155, y: -gHeight / 2 + 200, seating: 1 },
         ];
         for (let i = 0; i < 3; i++) {
@@ -202,7 +207,7 @@ export class GameManager {
                 .map(card => new Card(card.color, card.value))
                 .forEach((card, i) => {
                     card.label = `bottomCard${i}`;
-                    card.x = -card.width / 2 + (card.width + 5) * i - 65;
+                    card.x = -card.width / 2 + (card.width + 5) * i - 125;
                     card.y = -this.gameSize.height / 2 + card.height / 2 + 30;
                     bottomCardActions.push(async () => await card.flip());
                     this.gameView.addChild(card);
@@ -221,7 +226,7 @@ export class GameManager {
         console.log('叫地主阶段');
         // 玩家叫地主逻辑
         if (this.playerQueue) {
-            if (this.bidLandlordCount === this.players.length) {
+            if (this.bidLandlordCount === this.players.length + 1) {
                 if (this.landlord) {
                     console.log(`地主是：${this.landlord.getName()}`);
                     this.landlord.setName(`${this.landlord.getName()}（地主）`);
@@ -229,12 +234,69 @@ export class GameManager {
                         this.players.forEach(player => {
                             player.hideBidLabel();
                         });
+                        let handledCardCount = 0;
+                        for (
+                            let i = 0;
+                            i < this.initDeckInfo!.bottomCards!.length;
+                            i++
+                        ) {
+                            const bottomCard = this.gameView.getChildByLabel(
+                                `bottomCard${i}`
+                            );
+                            if (
+                                this.gameView.getChildByLabel(`bottomCard${i}`)
+                            ) {
+                                const timeline = gsap.timeline();
+                                timeline
+                                    .to(bottomCard, {
+                                        x: this.landlord!.x,
+                                        y: this.landlord!.y,
+                                        duration: 0.3,
+                                        ease: 'sina.in',
+                                    })
+                                    .to(bottomCard, {
+                                        alpha: 0,
+                                        duration: 0.3,
+                                        ease: 'sina.in',
+                                        onComplete: () => {
+                                            this.gameView.removeChild(
+                                                bottomCard!
+                                            );
+
+                                            console.log(
+                                                'gameView',
+                                                this.gameView
+                                            );
+                                            handledCardCount++;
+                                        },
+                                    })
+                                    .call(() => {
+                                        if (
+                                            this.initDeckInfo?.bottomCards &&
+                                            handledCardCount ===
+                                                this.initDeckInfo.bottomCards
+                                                    .length
+                                        ) {
+                                            this.landlord
+                                                ?.setBottomHands(
+                                                    this.initDeckInfo
+                                                        .bottomCards
+                                                )
+                                                .then(() => {
+                                                    this.gameStatus =
+                                                        GameStatus.BIDDED;
+                                                });
+                                            this.initDeckInfo.bottomCards = [];
+                                        }
+                                    });
+                            }
+                        }
                     }, 1500);
                 } else {
                 }
             } else {
                 const currentPlayer = this.playerQueue.getNextPlayer();
-                currentPlayer.bidLandlord();
+                currentPlayer.bidLandlord(this.landlord);
             }
         } else {
             console.warn('玩家队列未初始化');
@@ -250,49 +312,78 @@ export class GameManager {
     private playing(_input: any): void {
         // 立即切换到 PLAYER_TURN 状态，处理当前玩家的出牌
         console.log('出牌阶段');
+        this.gameStatus = GameStatus.PLAYING;
     }
 
-    // // PLAYER_TURN 状态
-    // private playerTurn(_input: any): void {
-    //     const currentPlayer = this.playerQueue.getCurrentPlayer();
+    // PLAYER_TURN 状态
+    private playerTurn(
+        _time: Ticker | null,
+        hand?: Card[],
+        player?: Player
+    ): void {
+        if (!hand || !player) {
+            const currentPlayer = this.playerQueue!.getNextPlayer();
+            // 如果当前玩家是地主且是第一轮出牌，则允许地主先出牌
+            if (
+                this.landlord &&
+                currentPlayer === this.landlord &&
+                !this.currentHand.length
+            ) {
+                console.log(
+                    `${this.landlord.getName()}开启游戏`,
+                    currentPlayer
+                );
+            }
+            // 玩家出牌逻辑
+            currentPlayer.play(this.currentHand);
+        } else {
+            const currentPlayer = player;
+            if (hand.length > 0) {
+                // 更新当前手牌
+                this.currentHand = hand;
+                this.lastPlayer = player;
+                console.log(`${currentPlayer.getName()} 出:`, hand);
+            } else {
+                console.log(`${currentPlayer.getName()} 过`);
+            }
+            // 检查游戏是否结束
+            if (this.isGameOver()) {
+                // 切换到结算
+                this.gameStatus = GameStatus.GAMEOVER;
+            } else {
+                // 切换到下一个玩家
+                this.playerQueue?.getNextPlayer();
+                this.gameStatus = GameStatus.PLAYED;
+            }
+        }
+    }
 
-    //     // 如果当前玩家是地主且是第一轮出牌，则允许地主先出牌
-    //     if (
-    //         this.landlord &&
-    //         currentPlayer === this.landlord &&
-    //         !this.currentHand.length
-    //     ) {
-    //         console.log(`Landlord ${this.landlord.id} starts the game.`);
-    //     }
-
-    //     // 玩家出牌逻辑
-    //     const hand = currentPlayer.play(this.currentHand);
-
-    //     if (hand.length > 0) {
-    //         // 更新当前手牌
-    //         this.currentHand = hand;
-    //         this.lastPlayer = currentPlayer;
-    //         console.log(`Player ${currentPlayer.id} played:`, hand);
-    //     } else {
-    //         console.log(`Player ${currentPlayer.id} passed.`);
-    //     }
-
-    //     // 检查游戏是否结束
-    //     if (this.isGameOver()) {
-    //         this.stateMachine.transitionTo(GameState.SETTLEMENT);
-    //     } else {
-    //         // 切换到下一个玩家
-    //         this.playerQueue.getNextPlayer();
-    //         this.stateMachine.transitionTo(GameState.PLAYING);
-    //     }
-    // }
+    private isGameOver() {
+        return this.players.some(player => player.isHandsEmpty());
+    }
 
     private handlePlayerPlayCard(player: Player) {
-        console.log(player);
+        const playerSelectCards = player.getSelectCards();
+        const valid =
+            judgeCardType(playerSelectCards.map(card => card.value)) !==
+            CardType.INVALID;
+        console.log(
+            `${player.getName()}选择`,
+            playerSelectCards,
+            '是否合法',
+            valid
+        );
+        if (isEmptyArray(this.currentHand) && valid) {
+            player.sendCards().then(() => {
+                this.playerTurn(null, playerSelectCards, player);
+            });
+        }
     }
 
     private handlePlayerPassCard(player: Player) {
-        console.log(player);
+        const playerSelectCards = player.getSelectCards();
+        player.setUnSelectCards();
+        this.playerTurn(null, playerSelectCards, player);
     }
 
     private handlePlayerNoCallLandlord(player: Player) {
@@ -308,8 +399,8 @@ export class GameManager {
         this.bidding(null);
     }
 
-    public update(_time: Ticker) {
-        this.stateMachine.update(_time);
+    public update(time: Ticker) {
+        this.stateMachine.update(time);
     }
 
     public deploy() {

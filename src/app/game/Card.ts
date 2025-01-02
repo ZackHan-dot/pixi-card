@@ -41,6 +41,8 @@ export class Card extends Container {
     value: CardModelValue;
     isFaceUp: boolean;
     cardSprite: Sprite;
+    isPlayed: boolean = false;
+    isSelect: boolean = false;
 
     constructor(
         color: CardColor,
@@ -50,10 +52,12 @@ export class Card extends Container {
         super();
         this.color = color;
         this.value = value;
+        this.label = `${this.color},${this.value}`;
         this.isFaceUp = isFaceUp;
         this.cardSprite = new Sprite(Texture.from('back.png'));
         this.cardSprite.anchor.set(0.5);
         this.cardSprite.scale.set(0.5);
+        this.cardSprite.on('pointerdown', this.onClick.bind(this));
         this.addChild(this.cardSprite);
         this.renderCard();
     }
@@ -72,6 +76,10 @@ export class Card extends Container {
         }
     }
 
+    public setInteractive(interactive: boolean) {
+        this.cardSprite.interactive = interactive;
+    }
+
     public async flip() {
         this.isFaceUp = !this.isFaceUp;
         await gsap
@@ -79,5 +87,23 @@ export class Card extends Container {
             .to(this.cardSprite.scale, { x: 0, duration: 0.3 })
             .call(() => this.renderCard())
             .to(this.cardSprite.scale, { x: 0.5, duration: 0.3 });
+    }
+
+    public async switchSelect() {
+        if (this.isPlayed) return;
+        this.isSelect = !this.isSelect;
+        await gsap.to(this.cardSprite, {
+            y: this.isSelect ? -70 : 0,
+            duration: 0.1,
+            ease: 'sine.in',
+        });
+    }
+
+    public getIsPlayed() {
+        return this.isPlayed;
+    }
+
+    private onClick() {
+        this.switchSelect();
     }
 }

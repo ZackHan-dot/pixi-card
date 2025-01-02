@@ -3,7 +3,7 @@ import { CardType } from './const';
 
 export type CardValue = Array<number | 'w1' | 'w2'>;
 
-const compareFn = (a: number | string, b: number | string) => {
+export const compareFn = (a: number | string, b: number | string) => {
     if (typeof a === 'number' && typeof b === 'number') {
         return a - b; // 数字之间按升序排序
     } else if (typeof a === 'string' && typeof b === 'string') {
@@ -542,4 +542,55 @@ export function generateRandomHands(): InitDeckInfo {
     const deck = generateDeck();
     const shuffledDeck = shuffleDeck(deck);
     return dealCards(shuffledDeck);
+}
+
+export function findSmallestHand(deck: CardModel[]): CardModel[] {
+    const hands = deck.slice().sort((a, b) => compareFn(a.value, b.value));
+    for (let i = 1; i <= hands.length; i++) {
+        for (let j = 0; j <= hands.length - i; j++) {
+            const subHand = hands.slice(j, j + i);
+            const cardType = judgeCardType(subHand.map(c => c.value));
+            if (cardType !== CardType.INVALID) {
+                return subHand;
+            }
+        }
+    }
+    return [];
+}
+
+export function findLargestHand(
+    lastHands: CardModel[],
+    deck: CardModel[]
+): CardModel[] {
+    const hands = deck.slice().sort((a, b) => compareFn(a.value, b.value));
+    const lastCardType = judgeCardType(lastHands.map(c => c.value));
+    let largestHands: CardModel[] = [];
+
+    for (let i = lastHands.length; i <= hands.length; i++) {
+        for (let j = 0; j <= hands.length - i; j++) {
+            const subHand = hands.slice(j, j + i);
+            const cardType = judgeCardType(subHand.map(c => c.value));
+            if (cardType !== CardType.INVALID && cardType === lastCardType) {
+                if (
+                    compareHands(
+                        subHand.map(c => c.value),
+                        lastHands.map(c => c.value)
+                    ) > 0
+                ) {
+                    if (
+                        largestHands.length === 0 ||
+                        compareHands(
+                            subHand.map(c => c.value),
+                            largestHands.map(c => c.value)
+                        ) > 0
+                    ) {
+                        largestHands.length = 0;
+                        largestHands.push(...subHand);
+                    }
+                }
+            }
+        }
+    }
+
+    return largestHands;
 }
