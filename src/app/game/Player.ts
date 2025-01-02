@@ -325,15 +325,14 @@ export class Player extends Container {
             });
             this.showPlayButtons();
         } else {
-            const tt = findLargestHand(
+            const lhands = findLargestHand(
                 currentHand.map(c => ({ color: c.color, value: c.value })),
                 this.hands.map(c => ({ color: c.color, value: c.value }))
             );
-            console.log(
-                tt,
-                '非玩家出牌',
-                this.hands.map(c => ({ color: c.color, value: c.value }))
-            );
+            console.log(lhands, '非玩家出牌');
+            if (lhands.length > 0) {
+            } else {
+            }
         }
     }
 
